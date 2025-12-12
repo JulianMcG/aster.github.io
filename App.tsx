@@ -87,7 +87,11 @@ export default function App() {
         }}
         className="group cursor-pointer flex items-center gap-2"
       >
-        <div className="w-3 h-3 bg-white group-hover:rotate-45 transition-transform duration-300"></div>
+        <img 
+          src="/favicon.png" 
+          alt="aster" 
+          className="w-4 h-4 group-hover:rotate-45 transition-transform duration-300"
+        />
         <div className="font-display font-bold text-xl tracking-tight-swiss lowercase text-white">
           aster
         </div>
@@ -124,10 +128,11 @@ export default function App() {
             {view === 'playing' && !showCode && (
               <button 
                 onClick={() => setIsPaused(!isPaused)}
-                className="h-6 w-6 flex items-center justify-center border border-white hover:bg-white hover:text-black transition-colors"
+                className="font-mono text-xs text-white hover:bg-white hover:text-black border border-white px-3 py-1.5 transition-colors lowercase flex items-center gap-2 tracking-normal-swiss"
                 title={isPaused ? "Resume" : "Pause"}
               >
-                {isPaused ? <Play size={12} /> : <Pause size={12} />}
+                {isPaused ? <Play size={10} /> : <Pause size={10} />}
+                {isPaused ? "resume" : "pause"}
               </button>
             )}
             <button 
