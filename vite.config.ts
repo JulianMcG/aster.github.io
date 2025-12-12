@@ -9,12 +9,7 @@ export default defineConfig(({ mode }) => {
   const apiKey = env.VITE_API_KEY || env.API_KEY;
   
   return {
-    plugins: [
-      react({
-        include: /\.(tsx|jsx)$/,
-        exclude: /services\/geminiService\.ts$/,
-      })
-    ],
+    plugins: [react()],
     define: {
       // Expose API key to client code via import.meta.env
       'import.meta.env.VITE_API_KEY': JSON.stringify(apiKey),
