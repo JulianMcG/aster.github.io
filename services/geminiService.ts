@@ -59,8 +59,16 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
     }
 
     // Try different models in order of preference
-    const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+    // Updated to include newer models and common variations
+    const modelsToTry = [
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
+      "gemini-2.0-flash-exp",
+      "gemini-2.5-flash",
+      "gemini-2.5-pro"
+    ];
     let lastError: any = null;
+    const failedModels: string[] = [];
 
     for (const modelName of modelsToTry) {
       try {
@@ -84,9 +92,19 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
         return text.trim();
       } catch (error: any) {
         lastError = error;
-        // If it's a 404 (model not found), try next model
-        if (error.message?.includes('404') || error.message?.includes('not found')) {
-          console.warn(`Model ${modelName} not available, trying next...`);
+        const errorMessage = error.message || '';
+        const errorString = JSON.stringify(error);
+        
+        // Check for 404 or "not found" errors - try next model
+        if (
+          errorMessage.includes('404') || 
+          errorMessage.includes('not found') ||
+          errorMessage.includes('is not found') ||
+          errorString.includes('404') ||
+          errorString.includes('not found')
+        ) {
+          failedModels.push(modelName);
+          console.warn(`Model ${modelName} not available (404), trying next...`);
           continue;
         }
         // For other errors, throw immediately
@@ -94,8 +112,11 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
       }
     }
 
-    // If all models failed, throw the last error
-    throw lastError || new Error("All model attempts failed");
+    // If all models failed, provide a helpful error message
+    const errorMsg = failedModels.length > 0
+      ? `All models failed (404 errors). Tried: ${failedModels.join(', ')}. This usually means:\n1. Your API key may not have access to these models\n2. The models may not be available in your region\n3. The Generative Language API may not be enabled for your project\n\nPlease check your API key permissions at https://aistudio.google.com/apikey\n\nLast error: ${lastError?.message || 'Unknown error'}`
+      : `All model attempts failed. Last error: ${lastError?.message || 'Unknown error'}`;
+    throw new Error(errorMsg);
   } catch (error: any) {
     console.error("Gemini API Error:", error);
     throw new Error(error.message || "Failed to generate game code.");
