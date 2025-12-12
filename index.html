@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>aster</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Coolvetica', 'Archivo', 'sans-serif'],
+              mono: ['monospace'],
+            },
+            colors: {
+              black: '#050505', 
+              white: '#eeeeee', 
+              gray: {
+                800: '#333333',
+                900: '#1a1a1a',
+              }
+            },
+            letterSpacing: {
+              'tight-swiss': '0em',     // 0% tracking for headers as requested
+              'normal-swiss': '0em',    // 0% tracking for small text
+            },
+            borderRadius: {
+              none: '0px', // Enforce square corners
+            },
+            animation: {
+              'blink': 'blink 1.2s step-end infinite',
+            },
+            keyframes: {
+              blink: {
+                '0%, 100%': { opacity: '1' },
+                '50%': { opacity: '0' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #050505;
+        color: #eeeeee;
+      }
+      
+      @font-face {
+        font-family: 'Coolvetica';
+        src: url('/coolvetica.otf') format('opentype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      /* Brutalist Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        background: #050505;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #333; 
+        border: none;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #eee; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.560.0",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

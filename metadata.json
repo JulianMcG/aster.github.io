@@ -1,0 +1,5 @@
+{
+  "name": "Aster",
+  "description": "Minimalist AI Game Generator. Type a prompt, play a game.",
+  "requestFramePermissions": []
+}
