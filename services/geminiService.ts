@@ -58,25 +58,44 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
       `;
     }
 
-    // Use gemini-1.5-pro (stable model)
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-pro",
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-      },
-    });
+    // Try different models in order of preference
+    const modelsToTry = ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro-latest"];
+    let lastError: any = null;
 
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    let text = response.text() || '';
+    for (const modelName of modelsToTry) {
+      try {
+        const model = genAI.getGenerativeModel({ 
+          model: modelName,
+          systemInstruction: SYSTEM_INSTRUCTION,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+          },
+        });
 
-    // Cleanup: Remove markdown code blocks if the model accidentally included them
-    text = text.replace(/^```html\s*/i, '').replace(/```$/, '');
-    text = text.replace(/^```\s*/i, '').replace(/```$/, '');
-    
-    return text.trim();
+        const result = await model.generateContent(finalPrompt);
+        const response = await result.response;
+        let text = response.text() || '';
+
+        // Cleanup: Remove markdown code blocks if the model accidentally included them
+        text = text.replace(/^```html\s*/i, '').replace(/```$/, '');
+        text = text.replace(/^```\s*/i, '').replace(/```$/, '');
+        
+        return text.trim();
+      } catch (error: any) {
+        lastError = error;
+        // If it's a 404 (model not found), try next model
+        if (error.message?.includes('404') || error.message?.includes('not found')) {
+          console.warn(`Model ${modelName} not available, trying next...`);
+          continue;
+        }
+        // For other errors, throw immediately
+        throw error;
+      }
+    }
+
+    // If all models failed, throw the last error
+    throw lastError || new Error("All model attempts failed");
   } catch (error: any) {
     console.error("Gemini API Error:", error);
     throw new Error(error.message || "Failed to generate game code.");
