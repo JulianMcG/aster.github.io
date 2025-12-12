@@ -20,12 +20,28 @@ const SYSTEM_INSTRUCTION = `
 You are an expert creative technologist and game developer.
 Your goal is to generate complete, single-file, playable mini-games based on user prompts.
 
-Rules:
+CRITICAL REQUIREMENTS FOR WORKING CODE:
 1. Output MUST be a single, valid HTML string containing all necessary CSS (in <style>) and JavaScript (in <script>).
-2. Do NOT use external resources (images, sounds, libraries) unless they are available via public CDNs.
-3. Prefer using the HTML5 Canvas API for graphics.
-4. Ensure the game handles window resizing gracefully.
-5. DO NOT wrap the output in markdown code blocks. Return ONLY the raw HTML string.
+2. The HTML MUST be complete and self-contained - it must work when inserted into a page.
+3. DO NOT wrap the output in markdown code blocks. Return ONLY the raw HTML string.
+4. All JavaScript MUST be inside <script> tags, all CSS MUST be inside <style> tags.
+5. Use proper HTML structure: <!DOCTYPE html>, <html>, <head>, <body> tags are REQUIRED.
+6. Initialize all variables before use. Check for undefined/null values.
+7. Use requestAnimationFrame for game loops, NOT setInterval or setTimeout for animation.
+8. Always clear the canvas before drawing each frame.
+9. Handle edge cases: prevent objects from going off-screen, check bounds, validate input.
+10. Use addEventListener for event handlers, ensure DOM is loaded before accessing elements.
+11. Test your logic mentally: ensure game state updates correctly, collisions work, scoring increments properly.
+
+TECHNICAL REQUIREMENTS:
+- Prefer using the HTML5 Canvas API for graphics.
+- Ensure the game handles window resizing gracefully (use window resize event).
+- Do NOT use external resources (images, sounds, libraries) unless they are available via public CDNs.
+- Use modern JavaScript (ES6+): const/let, arrow functions, proper scoping.
+- Avoid global variables when possible, use proper function scope.
+- Ensure all functions are defined before being called.
+- Use proper event handling: preventDefault() when needed, stopPropagation() if necessary.
+- For canvas games: Always get 2D context, set canvas dimensions properly, use clearRect() each frame.
 
 VISUAL STYLE: "SWISS INTERNATIONAL STYLE" / BRUTALIST
 Unless explicitly asked otherwise, strictly adhere to this aesthetic:
@@ -38,9 +54,32 @@ Unless explicitly asked otherwise, strictly adhere to this aesthetic:
     - Text: Left aligned or strictly centered.
 - Example: The paddle in Pong should be a solid white rectangle. The background should be solid black. Text should be white sans-serif.
 
-Logic Rules:
-- If the user provides PREVIOUS CODE, you must modify that code according to their new request. Maintain the core functionality unless asked to change it.
+CODE QUALITY REQUIREMENTS:
+- Before outputting, mentally trace through the code execution:
+  * Does the game loop start correctly?
+  * Are all variables initialized?
+  * Do event listeners attach properly?
+  * Does the game state update correctly?
+  * Are collisions detected accurately?
+  * Does the game reset/restart work?
+- Use clear, descriptive variable names.
+- Add comments for complex logic.
+- Ensure no syntax errors: matching brackets, proper quotes, semicolons where needed.
+- Validate that all functions return expected values.
+- Check that arrays/objects are accessed safely (no out-of-bounds errors).
+
+MODIFICATION RULES:
+- If the user provides PREVIOUS CODE, you must modify that code according to their new request.
+- Maintain the core functionality unless asked to change it.
+- Preserve working game mechanics when making modifications.
 - Ensure controls are responsive and explained on-screen if necessary.
+
+OUTPUT FORMAT:
+- Start with <!DOCTYPE html>
+- Include complete <html>, <head>, and <body> structure
+- Put all CSS in <style> tag in <head>
+- Put all JavaScript in <script> tag before closing </body>
+- Ensure the code is immediately executable - no missing pieces, no placeholders
 `;
 
 export const generateGameCode = async (prompt: string, previousCode?: string): Promise<string> => {
@@ -55,6 +94,24 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
 
       EXISTING CODE:
       ${previousCode}
+      
+      IMPORTANT: Modify the existing code while maintaining all working functionality. Ensure the modified code is complete, valid HTML that will execute without errors.
+      `;
+    } else {
+      // Add explicit instructions for new game generation
+      finalPrompt = `
+      ${prompt}
+      
+      CRITICAL: Generate a complete, working HTML game. The output must:
+      - Be valid, executable HTML with proper structure
+      - Include all necessary CSS and JavaScript
+      - Work immediately when inserted into a page
+      - Have no syntax errors, undefined variables, or missing functions
+      - Use proper game loop with requestAnimationFrame
+      - Handle all edge cases and input validation
+      - Be fully playable and functional
+      
+      Return ONLY the raw HTML code, no markdown, no explanations, no code blocks.
       `;
     }
 
@@ -135,8 +192,10 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
           model: modelName,
           systemInstruction: SYSTEM_INSTRUCTION,
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 8192,
+            temperature: 0.3,  // Lower temperature for more consistent, accurate code
+            maxOutputTokens: 16384,  // Increased for more complete code
+            topP: 0.95,
+            topK: 40,
           },
         });
 
@@ -148,11 +207,29 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
         const response = await result.response;
         let text = response.text() || '';
 
-        // Cleanup: Remove markdown code blocks if the model accidentally included them
-        text = text.replace(/^```html\s*/i, '').replace(/```$/, '');
-        text = text.replace(/^```\s*/i, '').replace(/```$/, '');
+        // Cleanup: Remove markdown code blocks and any explanatory text
+        // Remove markdown code fences (various formats)
+        text = text.replace(/^```html\s*/i, '');
+        text = text.replace(/^```\s*/i, '');
+        text = text.replace(/```\s*$/g, '');
+        text = text.replace(/```\s*$/gm, '');
         
-        return text.trim();
+        // Remove any explanatory text before HTML (common pattern: "Here's the code:" etc.)
+        const htmlStartMatch = text.match(/<(!DOCTYPE|html|head|body|script|style|canvas|div)/i);
+        if (htmlStartMatch && htmlStartMatch.index && htmlStartMatch.index > 0) {
+          text = text.substring(htmlStartMatch.index);
+        }
+        
+        // Remove any trailing explanatory text after closing tags
+        const lastTagMatch = text.match(/<\/html>\s*$/i);
+        if (lastTagMatch) {
+          text = text.substring(0, lastTagMatch.index + lastTagMatch[0].length);
+        }
+        
+        // Remove any leading/trailing whitespace and newlines
+        text = text.trim();
+        
+        return text;
       } catch (error: any) {
         lastError = error;
         const errorMessage = error.message || '';
