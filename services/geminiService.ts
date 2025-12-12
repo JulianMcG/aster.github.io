@@ -32,7 +32,6 @@ CRITICAL REQUIREMENTS FOR WORKING CODE:
 9. Handle edge cases: prevent objects from going off-screen, check bounds, validate input.
 10. Use addEventListener for event handlers, ensure DOM is loaded before accessing elements.
 11. Test your logic mentally: ensure game state updates correctly, collisions work, scoring increments properly.
-12. Support pause/resume: Add window.addEventListener('message', (e) => { if (e.data.type === 'pause') { /* stop game loop */ } if (e.data.type === 'resume') { /* restart game loop */ } }) to allow pausing the game.
 
 TECHNICAL REQUIREMENTS:
 - Prefer using the HTML5 Canvas API for graphics.
@@ -44,29 +43,16 @@ TECHNICAL REQUIREMENTS:
 - Use proper event handling: preventDefault() when needed, stopPropagation() if necessary.
 - For canvas games: Always get 2D context, set canvas dimensions properly, use clearRect() each frame.
 
-FULLSCREEN REQUIREMENTS (CRITICAL):
-- The game MUST fill the entire viewport - NO margins, NO padding, NO centering containers.
-- Use CSS: html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-- Canvas MUST be fullscreen: width="100%" height="100%" or use JavaScript to set canvas.width = window.innerWidth and canvas.height = window.innerHeight.
-- NO containers with max-width, NO centering with margin: auto, NO padding on body/html.
-- The game should use 100vw and 100vh for full viewport dimensions.
-- All game elements should be positioned relative to the full viewport, not a centered container.
-
 VISUAL STYLE: "SWISS INTERNATIONAL STYLE" / BRUTALIST
 Unless explicitly asked otherwise, strictly adhere to this aesthetic:
 - Color Palette: STRICTLY Black (#050505) and White (#eeeeee). No grays, no colors.
 - Forms: Rectangular, sharp edges. NO border-radius.
-- Typography: MUST use a clean, geometric sans-serif font similar to Coolvetica. 
-  REQUIRED: Include this in <head>: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  Then use: font-family: 'Inter', 'Arial', 'Helvetica', sans-serif; for all text.
-  Inter is a geometric sans-serif that closely matches the Coolvetica aesthetic.
-  All text should be lowercase for UI elements.
-  The font should be clean, geometric, and sans-serif - matching Swiss International Style typography.
+- Typography: Sans-serif (Arial, Helvetica). Lowercase text for UI elements.
 - Layout: Grid-based, high contrast.
 - UI Elements: 
     - Buttons: White borders, black background, white text. Hover: Invert.
     - Text: Left aligned or strictly centered.
-- Example: The paddle in Pong should be a solid white rectangle. The background should be solid black. Text should be white Coolvetica font, lowercase.
+- Example: The paddle in Pong should be a solid white rectangle. The background should be solid black. Text should be white sans-serif.
 
 CODE QUALITY REQUIREMENTS:
 - Before outputting, mentally trace through the code execution:
@@ -124,8 +110,6 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
       - Use proper game loop with requestAnimationFrame
       - Handle all edge cases and input validation
       - Be fully playable and functional
-      - Fill the ENTIRE viewport (100vw x 100vh) with NO margins, padding, or centering containers
-      - Canvas/game area must be fullscreen, not in a centered frame
       
       Return ONLY the raw HTML code, no markdown, no explanations, no code blocks.
       `;
