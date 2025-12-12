@@ -59,16 +59,74 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
     }
 
     // Try different models in order of preference
-    // Updated to include newer models and common variations
+    // Prioritize stable models with better quota limits
     const modelsToTry = [
-      "gemini-1.5-flash",
-      "gemini-1.5-pro",
-      "gemini-2.0-flash-exp",
-      "gemini-2.5-flash",
-      "gemini-2.5-pro"
+      "gemini-1.5-flash",      // Most stable, best free tier quota
+      "gemini-1.5-pro",        // Stable, good for complex tasks
+      "gemini-2.5-flash",      // Newer stable model
+      "gemini-2.5-pro"         // Newer stable model
     ];
     let lastError: any = null;
     const failedModels: string[] = [];
+
+    // Helper function to extract retry delay from error
+    const extractRetryDelay = (error: any): number => {
+      try {
+        const errorString = JSON.stringify(error);
+        const retryMatch = errorString.match(/retryDelay["\s:]+"?(\d+(?:\.\d+)?)s?/i);
+        if (retryMatch) {
+          return Math.ceil(parseFloat(retryMatch[1]) * 1000); // Convert to milliseconds
+        }
+        // Check error message for retry time
+        const messageMatch = error.message?.match(/retry in ([\d.]+)s/i);
+        if (messageMatch) {
+          return Math.ceil(parseFloat(messageMatch[1]) * 1000);
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+      return 5000; // Default 5 second delay
+    };
+
+    // Helper function to retry with exponential backoff
+    const retryWithBackoff = async (
+      fn: () => Promise<any>,
+      maxRetries: number = 3,
+      baseDelay: number = 1000
+    ): Promise<any> => {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          return await fn();
+        } catch (error: any) {
+          const errorMessage = error.message || '';
+          const errorString = JSON.stringify(error);
+          
+          // Check for rate limit (429) errors
+          if (
+            errorMessage.includes('429') ||
+            errorMessage.includes('quota') ||
+            errorMessage.includes('rate limit') ||
+            errorString.includes('429')
+          ) {
+            if (attempt < maxRetries - 1) {
+              const delay = extractRetryDelay(error);
+              const backoffDelay = delay + (baseDelay * Math.pow(2, attempt));
+              console.warn(`Rate limit hit, retrying in ${Math.ceil(backoffDelay / 1000)}s... (attempt ${attempt + 1}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, backoffDelay));
+              continue;
+            }
+            // If all retries exhausted, throw quota error
+            throw new Error(
+              `Rate limit exceeded. Please wait before trying again. ` +
+              `Check your quota at https://ai.dev/usage?tab=rate-limit. ` +
+              `Original error: ${error.message}`
+            );
+          }
+          // For non-rate-limit errors, throw immediately
+          throw error;
+        }
+      }
+    };
 
     for (const modelName of modelsToTry) {
       try {
@@ -81,7 +139,11 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
           },
         });
 
-        const result = await model.generateContent(finalPrompt);
+        // Use retry logic for rate limits
+        const result = await retryWithBackoff(async () => {
+          return await model.generateContent(finalPrompt);
+        });
+        
         const response = await result.response;
         let text = response.text() || '';
 
@@ -107,15 +169,39 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
           console.warn(`Model ${modelName} not available (404), trying next...`);
           continue;
         }
+        
+        // Check for quota/rate limit errors - try next model (after retries exhausted)
+        if (
+          errorMessage.includes('429') ||
+          errorMessage.includes('quota') ||
+          errorMessage.includes('rate limit') ||
+          errorString.includes('429')
+        ) {
+          failedModels.push(`${modelName} (quota exceeded)`);
+          console.warn(`Model ${modelName} quota exceeded, trying next...`);
+          continue;
+        }
+        
         // For other errors, throw immediately
         throw error;
       }
     }
 
     // If all models failed, provide a helpful error message
-    const errorMsg = failedModels.length > 0
-      ? `All models failed (404 errors). Tried: ${failedModels.join(', ')}. This usually means:\n1. Your API key may not have access to these models\n2. The models may not be available in your region\n3. The Generative Language API may not be enabled for your project\n\nPlease check your API key permissions at https://aistudio.google.com/apikey\n\nLast error: ${lastError?.message || 'Unknown error'}`
-      : `All model attempts failed. Last error: ${lastError?.message || 'Unknown error'}`;
+    const hasQuotaErrors = failedModels.some(m => m.includes('quota'));
+    const has404Errors = failedModels.some(m => !m.includes('quota'));
+    
+    let errorMsg = '';
+    if (hasQuotaErrors && has404Errors) {
+      errorMsg = `All models failed. Some models had quota issues, others were not found.\n\nTried: ${failedModels.join(', ')}\n\nThis usually means:\n1. You've exceeded your API quota/rate limits\n2. Some models may not be available in your region\n3. Your API key may not have access to certain models\n\nPlease:\n- Check your quota at https://ai.dev/usage?tab=rate-limit\n- Wait a few minutes before trying again\n- Verify API key permissions at https://aistudio.google.com/apikey\n\nLast error: ${lastError?.message || 'Unknown error'}`;
+    } else if (hasQuotaErrors) {
+      errorMsg = `All models exceeded quota limits. Tried: ${failedModels.join(', ')}\n\nYou've hit your rate limit or daily quota. Please:\n- Wait before trying again (check the retry time in the error)\n- Monitor your usage at https://ai.dev/usage?tab=rate-limit\n- Consider upgrading your plan if you need higher limits\n\nLast error: ${lastError?.message || 'Unknown error'}`;
+    } else if (has404Errors) {
+      errorMsg = `All models failed (404 errors). Tried: ${failedModels.join(', ')}\n\nThis usually means:\n1. Your API key may not have access to these models\n2. The models may not be available in your region\n3. The Generative Language API may not be enabled for your project\n\nPlease check your API key permissions at https://aistudio.google.com/apikey\n\nLast error: ${lastError?.message || 'Unknown error'}`;
+    } else {
+      errorMsg = `All model attempts failed. Last error: ${lastError?.message || 'Unknown error'}`;
+    }
+    
     throw new Error(errorMsg);
   } catch (error: any) {
     console.error("Gemini API Error:", error);
