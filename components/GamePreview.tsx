@@ -2,10 +2,9 @@ import React, { useEffect, useRef } from 'react';
 
 interface GamePreviewProps {
   code: string;
-  isPaused?: boolean;
 }
 
-const GamePreview: React.FC<GamePreviewProps> = ({ code, isPaused = false }) => {
+const GamePreview: React.FC<GamePreviewProps> = ({ code }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -20,35 +19,14 @@ const GamePreview: React.FC<GamePreviewProps> = ({ code, isPaused = false }) => 
     }
   }, [code]);
 
-  // Send pause/resume message to iframe
-  useEffect(() => {
-    if (iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage(
-          { type: isPaused ? 'pause' : 'resume' },
-          '*'
-        );
-      } catch (e) {
-        // Ignore cross-origin errors
-      }
-    }
-  }, [isPaused]);
-
   return (
-    <div className="w-full h-full bg-white relative">
+    <div className="w-full h-full bg-white">
       <iframe
         ref={iframeRef}
         title="Aster Game Preview"
         className="w-full h-full border-0"
         sandbox="allow-scripts allow-forms allow-pointer-lock allow-modals"
       />
-      {isPaused && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
-          <div className="font-display text-2xl lowercase tracking-tight-swiss text-white">
-            paused
-          </div>
-        </div>
-      )}
     </div>
   );
 };
