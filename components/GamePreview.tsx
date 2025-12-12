@@ -2,9 +2,10 @@ import React, { useEffect, useRef } from 'react';
 
 interface GamePreviewProps {
   code: string;
+  isPaused?: boolean;
 }
 
-const GamePreview: React.FC<GamePreviewProps> = ({ code }) => {
+const GamePreview: React.FC<GamePreviewProps> = ({ code, isPaused = false }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -19,8 +20,18 @@ const GamePreview: React.FC<GamePreviewProps> = ({ code }) => {
     }
   }, [code]);
 
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow) {
+      // Send pause/play message to iframe
+      iframeRef.current.contentWindow.postMessage(
+        { type: isPaused ? 'pause' : 'play' },
+        '*'
+      );
+    }
+  }, [isPaused]);
+
   return (
-    <div className="w-full h-full bg-white">
+    <div className="w-full h-full bg-black">
       <iframe
         ref={iframeRef}
         title="Aster Game Preview"
