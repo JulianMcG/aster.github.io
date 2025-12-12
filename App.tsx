@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowRight, RotateCcw, Edit3, X, Loader2, Code, Play } from 'lucide-react';
+import { ArrowRight, RotateCcw, Edit3, X, Loader2, Code, Play, Pause } from 'lucide-react';
 import { generateGameCode } from './services/geminiService';
 import GamePreview from './components/GamePreview';
 import CodeViewer from './components/CodeViewer';
@@ -21,6 +21,7 @@ export default function App() {
   const [gameCode, setGameCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCode, setShowCode] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -120,6 +121,15 @@ export default function App() {
            </div>
         ) : (
           <>
+            {view === 'playing' && !showCode && (
+              <button 
+                onClick={() => setIsPaused(!isPaused)}
+                className="h-6 w-6 flex items-center justify-center border border-white hover:bg-white hover:text-black transition-colors"
+                title={isPaused ? "Resume" : "Pause"}
+              >
+                {isPaused ? <Play size={12} /> : <Pause size={12} />}
+              </button>
+            )}
             <button 
               onClick={() => setShowCode(!showCode)}
               className="font-mono text-xs text-white hover:bg-white hover:text-black border border-white px-3 py-1.5 transition-colors lowercase flex items-center gap-2 tracking-normal-swiss"
@@ -137,6 +147,7 @@ export default function App() {
                  setPrompt("");
                  setGameCode(null);
                  setView('landing');
+                 setIsPaused(false);
               }}
               className="font-mono text-xs text-gray-500 hover:text-white border border-gray-800 hover:border-white px-3 py-1.5 transition-colors lowercase flex items-center gap-2 tracking-normal-swiss"
             >
@@ -234,7 +245,7 @@ export default function App() {
                    <CodeViewer code={gameCode} />
                 </div>
              ) : (
-                <GamePreview code={gameCode} />
+                <GamePreview code={gameCode} isPaused={isPaused} />
              )}
           </main>
         </div>
