@@ -59,12 +59,13 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
     }
 
     // Try different models in order of preference
-    // Prioritize stable models with better quota limits
+    // Updated to use models available in your AI Studio account
     const modelsToTry = [
-      "gemini-1.5-flash",      // Most stable, best free tier quota
-      "gemini-1.5-pro",        // Stable, good for complex tasks
-      "gemini-2.5-flash",      // Newer stable model
-      "gemini-2.5-pro"         // Newer stable model
+      "gemini-2.5-flash",      // Primary: Text-out model with good quotas (5 RPM, 250K TPM, 20 RPD)
+      "gemini-2.5-flash-lite", // Fallback: Text-out model (10 RPM, 250K TPM, 20 RPD)
+      "gemma-3-27b",           // Fallback: Other model (30 RPM, 15K TPM, 14.4K RPD)
+      "gemma-3-12b",           // Fallback: Other model (30 RPM, 15K TPM, 14.4K RPD)
+      "gemma-3-4b"             // Fallback: Other model (30 RPM, 15K TPM, 14.4K RPD)
     ];
     let lastError: any = null;
     const failedModels: string[] = [];
