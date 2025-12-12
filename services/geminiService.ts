@@ -13,43 +13,10 @@ const getApiKey = (): string => {
   return apiKey;
 };
 
-// Load Coolvetica font and encode as base64 (cached after first load)
-let COOLVETICA_BASE64: string | null = null;
-let fontLoadPromise: Promise<string> | null = null;
-
-const loadCoolveticaFont = async (): Promise<string> => {
-  if (COOLVETICA_BASE64) return COOLVETICA_BASE64;
-  if (fontLoadPromise) return fontLoadPromise;
-  
-  fontLoadPromise = (async () => {
-    try {
-      const response = await fetch('/coolvetica.otf');
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      // Convert to base64
-      let binary = '';
-      uint8Array.forEach(byte => {
-        binary += String.fromCharCode(byte);
-      });
-      COOLVETICA_BASE64 = btoa(binary);
-      return COOLVETICA_BASE64;
-    } catch (error) {
-      console.error('Failed to load Coolvetica font:', error);
-      return '';
-    }
-  })();
-  
-  return fontLoadPromise;
-};
-
 // Initialize the client
 const genAI = new GoogleGenerativeAI(getApiKey());
 
-// Get system instruction with embedded font
-const getSystemInstruction = async (): Promise<string> => {
-  const fontBase64 = await loadCoolveticaFont();
-  return `
+const SYSTEM_INSTRUCTION = `
 You are an expert creative technologist and game developer.
 Your goal is to generate complete, single-file, playable mini-games based on user prompts.
 
@@ -89,17 +56,12 @@ VISUAL STYLE: "SWISS INTERNATIONAL STYLE" / BRUTALIST
 Unless explicitly asked otherwise, strictly adhere to this aesthetic:
 - Color Palette: STRICTLY Black (#050505) and White (#eeeeee). No grays, no colors.
 - Forms: Rectangular, sharp edges. NO border-radius.
-- Typography: MUST use Coolvetica font ONLY. NO other fonts allowed.
-  REQUIRED: Include this EXACT @font-face declaration in the <style> tag in <head>:
-  @font-face {
-    font-family: 'Coolvetica';
-    src: url('data:font/opentype;base64,${COOLVETICA_BASE64}') format('opentype');
-    font-weight: normal;
-    font-style: normal;
-  }
-  Then use: font-family: 'Coolvetica', sans-serif; for ALL text elements.
+- Typography: MUST use a clean, geometric sans-serif font similar to Coolvetica. 
+  REQUIRED: Include this in <head>: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  Then use: font-family: 'Inter', 'Arial', 'Helvetica', sans-serif; for all text.
+  Inter is a geometric sans-serif that closely matches the Coolvetica aesthetic.
   All text should be lowercase for UI elements.
-  The font MUST be Coolvetica - no substitutes, no fallbacks to other fonts.
+  The font should be clean, geometric, and sans-serif - matching Swiss International Style typography.
 - Layout: Grid-based, high contrast.
 - UI Elements: 
     - Buttons: White borders, black background, white text. Hover: Invert.
@@ -132,8 +94,7 @@ OUTPUT FORMAT:
 - Put all CSS in <style> tag in <head>
 - Put all JavaScript in <script> tag before closing </body>
 - Ensure the code is immediately executable - no missing pieces, no placeholders
-`.replace('${COOLVETICA_BASE64}', fontBase64);
-};
+`;
 
 export const generateGameCode = async (prompt: string, previousCode?: string): Promise<string> => {
   try {
@@ -243,10 +204,9 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
 
     for (const modelName of modelsToTry) {
       try {
-        const systemInstruction = await getSystemInstruction();
         const model = genAI.getGenerativeModel({ 
           model: modelName,
-          systemInstruction: systemInstruction,
+          systemInstruction: SYSTEM_INSTRUCTION,
           generationConfig: {
             temperature: 0.3,  // Lower temperature for more consistent, accurate code
             maxOutputTokens: 16384,  // Increased for more complete code
