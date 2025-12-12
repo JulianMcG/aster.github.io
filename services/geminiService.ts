@@ -1,304 +1,264 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import React, { useState, useRef, useEffect } from 'react';
+import { ArrowRight, RotateCcw, Edit3, X, Loader2, Code, Play, Pause } from 'lucide-react';
+import { generateGameCode } from './services/geminiService';
+import GamePreview from './components/GamePreview';
+import CodeViewer from './components/CodeViewer';
 
-// Get API key from environment variable
-// Supports both VITE_API_KEY (Vite standard) and API_KEY (for Vercel compatibility)
-const getApiKey = (): string => {
-  // Try Vite's import.meta.env (injected by Vite config)
-  const apiKey = import.meta.env.VITE_API_KEY || 
-                 (import.meta.env as any).API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("API_KEY is not defined. Please set VITE_API_KEY or API_KEY in your environment variables.");
-  }
-  return apiKey;
-};
+type ViewState = 'landing' | 'generating' | 'playing' | 'editing';
 
-// Initialize the client
-const genAI = new GoogleGenerativeAI(getApiKey());
+const SUGGESTIONS = [
+  "pong vs ai",
+  "asteroid defense",
+  "flappy square",
+  "snake",
+  "breakout"
+];
 
-const SYSTEM_INSTRUCTION = `
-You are an expert creative technologist and game developer.
-Your goal is to generate complete, single-file, playable mini-games based on user prompts.
+export default function App() {
+  const [prompt, setPrompt] = useState("");
+  const [editPrompt, setEditPrompt] = useState("");
+  const [view, setView] = useState<ViewState>('landing');
+  const [gameCode, setGameCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showCode, setShowCode] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-CRITICAL REQUIREMENTS FOR WORKING CODE:
-1. Output MUST be a single, valid HTML string containing all necessary CSS (in <style>) and JavaScript (in <script>).
-2. The HTML MUST be complete and self-contained - it must work when inserted into a page.
-3. DO NOT wrap the output in markdown code blocks. Return ONLY the raw HTML string.
-4. All JavaScript MUST be inside <script> tags, all CSS MUST be inside <style> tags.
-5. Use proper HTML structure: <!DOCTYPE html>, <html>, <head>, <body> tags are REQUIRED.
-6. Initialize all variables before use. Check for undefined/null values.
-7. Use requestAnimationFrame for game loops, NOT setInterval or setTimeout for animation.
-8. Always clear the canvas before drawing each frame.
-9. Handle edge cases: prevent objects from going off-screen, check bounds, validate input.
-10. Use addEventListener for event handlers, ensure DOM is loaded before accessing elements.
-11. Test your logic mentally: ensure game state updates correctly, collisions work, scoring increments properly.
+  const inputRef = useRef<HTMLInputElement>(null);
 
-TECHNICAL REQUIREMENTS:
-- Prefer using the HTML5 Canvas API for graphics.
-- Ensure the game handles window resizing gracefully (use window resize event).
-- Do NOT use external resources (images, sounds, libraries) unless they are available via public CDNs.
-- Use modern JavaScript (ES6+): const/let, arrow functions, proper scoping.
-- Avoid global variables when possible, use proper function scope.
-- Ensure all functions are defined before being called.
-- Use proper event handling: preventDefault() when needed, stopPropagation() if necessary.
-- For canvas games: Always get 2D context, set canvas dimensions properly, use clearRect() each frame.
-
-FULL SCREEN & RESPONSIVE REQUIREMENTS:
-- The game MUST fill the entire viewport with NO white frames, borders, or margins.
-- Set body and html to: margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #050505;
-- Canvas or game container MUST be: width: 100vw; height: 100vh; position: fixed; top: 0; left: 0;
-- Game MUST be fully responsive and scale properly for different screen sizes (mobile, tablet, desktop).
-- Use window.innerWidth and window.innerHeight for dimensions, NOT fixed pixel values.
-- Handle window resize events to update game dimensions dynamically.
-- All game elements should scale proportionally based on viewport size.
-- NO white backgrounds anywhere - use #050505 (black) or #eeeeee (white) only per visual style.
-
-PAUSE/PLAY FUNCTIONALITY:
-- Implement message listener for pause/play: window.addEventListener('message', (e) => { if (e.data.type === 'pause') { /* pause game */ } else if (e.data.type === 'play') { /* resume game */ } });
-- When paused, stop all animations and game loops (cancelAnimationFrame, clear intervals).
-- When resumed, restart animations and game loops from where they left off.
-- Store game state when pausing so it can be resumed correctly.
-
-VISUAL STYLE: "SWISS INTERNATIONAL STYLE" / BRUTALIST
-Unless explicitly asked otherwise, strictly adhere to this aesthetic:
-- Color Palette: STRICTLY Black (#050505) and White (#eeeeee). No grays, no colors.
-- Forms: Rectangular, sharp edges. NO border-radius.
-- Typography: Sans-serif (Arial, Helvetica). Lowercase text for UI elements.
-- Layout: Grid-based, high contrast.
-- UI Elements: 
-    - Buttons: White borders, black background, white text. Hover: Invert.
-    - Text: Left aligned or strictly centered.
-- Example: The paddle in Pong should be a solid white rectangle. The background should be solid black. Text should be white sans-serif.
-
-CODE QUALITY REQUIREMENTS:
-- Before outputting, mentally trace through the code execution:
-  * Does the game loop start correctly?
-  * Are all variables initialized?
-  * Do event listeners attach properly?
-  * Does the game state update correctly?
-  * Are collisions detected accurately?
-  * Does the game reset/restart work?
-- Use clear, descriptive variable names.
-- Add comments for complex logic.
-- Ensure no syntax errors: matching brackets, proper quotes, semicolons where needed.
-- Validate that all functions return expected values.
-- Check that arrays/objects are accessed safely (no out-of-bounds errors).
-
-MODIFICATION RULES:
-- If the user provides PREVIOUS CODE, you must modify that code according to their new request.
-- Maintain the core functionality unless asked to change it.
-- Preserve working game mechanics when making modifications.
-- Ensure controls are responsive and explained on-screen if necessary.
-
-OUTPUT FORMAT:
-- Start with <!DOCTYPE html>
-- Include complete <html>, <head>, and <body> structure
-- Put all CSS in <style> tag in <head>
-- Put all JavaScript in <script> tag before closing </body>
-- Ensure the code is immediately executable - no missing pieces, no placeholders
-`;
-
-export const generateGameCode = async (prompt: string, previousCode?: string): Promise<string> => {
-  try {
-    let finalPrompt = prompt;
-    
-    if (previousCode) {
-      finalPrompt = `
-      I have an existing game code. I want to modify it.
-      
-      REQUEST: ${prompt}
-
-      EXISTING CODE:
-      ${previousCode}
-      
-      IMPORTANT: Modify the existing code while maintaining all working functionality. Ensure the modified code is complete, valid HTML that will execute without errors.
-      `;
-    } else {
-      // Add explicit instructions for new game generation
-      finalPrompt = `
-      ${prompt}
-      
-      CRITICAL: Generate a complete, working HTML game. The output must:
-      - Be valid, executable HTML with proper structure
-      - Include all necessary CSS and JavaScript
-      - Work immediately when inserted into a page
-      - Have no syntax errors, undefined variables, or missing functions
-      - Use proper game loop with requestAnimationFrame
-      - Handle all edge cases and input validation
-      - Be fully playable and functional
-      
-      Return ONLY the raw HTML code, no markdown, no explanations, no code blocks.
-      `;
+  useEffect(() => {
+    if (view === 'landing' && inputRef.current) {
+      inputRef.current.focus();
     }
+  }, [view]);
 
-    // Try different models in order of preference
-    // Updated to use models available in your AI Studio account
-    const modelsToTry = [
-      "gemini-2.5-flash",      // Primary: Text-out model with good quotas (5 RPM, 250K TPM, 20 RPD)
-      "gemini-2.5-flash-lite", // Fallback: Text-out model (10 RPM, 250K TPM, 20 RPD)
-      "gemma-3-27b",           // Fallback: Other model (30 RPM, 15K TPM, 14.4K RPD)
-      "gemma-3-12b",           // Fallback: Other model (30 RPM, 15K TPM, 14.4K RPD)
-      "gemma-3-4b"             // Fallback: Other model (30 RPM, 15K TPM, 14.4K RPD)
-    ];
-    let lastError: any = null;
-    const failedModels: string[] = [];
+  const handleGenerate = async (promptText: string, isEdit = false) => {
+    if (!promptText.trim()) return;
 
-    // Helper function to extract retry delay from error
-    const extractRetryDelay = (error: any): number => {
-      try {
-        const errorString = JSON.stringify(error);
-        const retryMatch = errorString.match(/retryDelay["\s:]+"?(\d+(?:\.\d+)?)s?/i);
-        if (retryMatch) {
-          return Math.ceil(parseFloat(retryMatch[1]) * 1000); // Convert to milliseconds
-        }
-        // Check error message for retry time
-        const messageMatch = error.message?.match(/retry in ([\d.]+)s/i);
-        if (messageMatch) {
-          return Math.ceil(parseFloat(messageMatch[1]) * 1000);
-        }
-      } catch (e) {
-        // Ignore parsing errors
+    const previousView = view;
+    setView('generating');
+    setError(null);
+
+    try {
+      const code = await generateGameCode(promptText, isEdit && gameCode ? gameCode : undefined);
+      setGameCode(code);
+      setView('playing');
+      setEditPrompt("");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "generation failed");
+      setView(previousView === 'editing' ? 'playing' : 'landing');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, isEdit = false) => {
+    if (e.key === 'Enter') {
+      if (isEdit) {
+        handleGenerate(editPrompt, true);
+      } else {
+        handleGenerate(prompt);
       }
-      return 5000; // Default 5 second delay
-    };
+    }
+  };
 
-    // Helper function to retry with exponential backoff
-    const retryWithBackoff = async (
-      fn: () => Promise<any>,
-      maxRetries: number = 3,
-      baseDelay: number = 1000
-    ): Promise<any> => {
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          return await fn();
-        } catch (error: any) {
-          const errorMessage = error.message || '';
-          const errorString = JSON.stringify(error);
+  // --- COMPONENTS ---
+
+  const LoadingScreen = () => (
+    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50">
+      <div className="w-full max-w-md px-6">
+        <div className="border-t border-white mb-4 w-16"></div>
+        <div className="font-display text-4xl lowercase tracking-tight-swiss mb-2">
+          generating
+        </div>
+        <div className="font-mono text-xs text-gray-500 lowercase tracking-normal-swiss flex items-center gap-3">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>constructing experience</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const TopBar = () => (
+    <header className="h-16 border-b border-white/20 bg-black flex items-center justify-between px-6 select-none z-10 relative">
+      <div 
+        onClick={() => {
+          setPrompt("");
+          setGameCode(null);
+          setView('landing');
+          setIsPaused(false);
+        }}
+        className="group cursor-pointer flex items-center gap-2"
+      >
+        <img 
+          src="/logo.svg" 
+          alt="aster" 
+          className="w-4 h-4 group-hover:rotate-45 transition-transform duration-300"
+        />
+        <div className="font-display font-bold text-xl tracking-tight-swiss lowercase text-white">
+          aster
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        {view === 'editing' ? (
+           <div className="flex items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+             <div className="relative">
+               <input 
+                 autoFocus
+                 value={editPrompt}
+                 onChange={(e) => setEditPrompt(e.target.value)}
+                 onKeyDown={(e) => handleKeyDown(e, true)}
+                 placeholder="describe changes..."
+                 className="bg-transparent border-b border-gray-600 text-white font-mono text-xs w-64 focus:outline-none focus:border-white placeholder:text-gray-700 lowercase pb-1 tracking-normal-swiss"
+               />
+             </div>
+             <button 
+               onClick={() => handleGenerate(editPrompt, true)}
+               className="h-6 w-6 flex items-center justify-center border border-white hover:bg-white hover:text-black transition-colors"
+             >
+               <ArrowRight size={12} />
+             </button>
+             <button 
+               onClick={() => setView('playing')}
+               className="h-6 w-6 flex items-center justify-center border border-white hover:bg-white hover:text-black transition-colors"
+             >
+               <X size={12} />
+             </button>
+           </div>
+        ) : (
+          <>
+            {view === 'playing' && !showCode && (
+              <button 
+                onClick={() => setIsPaused(!isPaused)}
+                className="h-6 w-6 flex items-center justify-center border border-white hover:bg-white hover:text-black transition-colors"
+              >
+                {isPaused ? <Play size={12} /> : <Pause size={12} />}
+              </button>
+            )}
+            <button 
+              onClick={() => setShowCode(!showCode)}
+              className="font-mono text-xs text-white hover:bg-white hover:text-black border border-white px-3 py-1.5 transition-colors lowercase flex items-center gap-2 tracking-normal-swiss"
+            >
+              {showCode ? "preview" : "source"}
+            </button>
+            <button 
+              onClick={() => setView('editing')}
+              className="font-mono text-xs text-white hover:bg-white hover:text-black border border-white px-3 py-1.5 transition-colors lowercase flex items-center gap-2 tracking-normal-swiss"
+            >
+              <Edit3 size={10}/> edit
+            </button>
+            <button 
+              onClick={() => {
+                 setPrompt("");
+                 setGameCode(null);
+                 setView('landing');
+                 setIsPaused(false);
+              }}
+              className="font-mono text-xs text-gray-500 hover:text-white border border-gray-800 hover:border-white px-3 py-1.5 transition-colors lowercase flex items-center gap-2 tracking-normal-swiss"
+            >
+              <RotateCcw size={10}/> new
+            </button>
+          </>
+        )}
+      </div>
+    </header>
+  );
+
+  return (
+    <div className="min-h-screen bg-black text-white font-sans flex flex-col overflow-hidden selection:bg-white selection:text-black">
+      
+      {view === 'generating' && <LoadingScreen />}
+
+      {/* LANDING STATE */}
+      {view === 'landing' && (
+        <div className="flex-1 flex flex-col justify-center items-center w-full h-full relative p-6">
           
-          // Check for rate limit (429) errors
-          if (
-            errorMessage.includes('429') ||
-            errorMessage.includes('quota') ||
-            errorMessage.includes('rate limit') ||
-            errorString.includes('429')
-          ) {
-            if (attempt < maxRetries - 1) {
-              const delay = extractRetryDelay(error);
-              const backoffDelay = delay + (baseDelay * Math.pow(2, attempt));
-              console.warn(`Rate limit hit, retrying in ${Math.ceil(backoffDelay / 1000)}s... (attempt ${attempt + 1}/${maxRetries})`);
-              await new Promise(resolve => setTimeout(resolve, backoffDelay));
-              continue;
-            }
-            // If all retries exhausted, throw quota error
-            throw new Error(
-              `Rate limit exceeded. Please wait before trying again. ` +
-              `Check your quota at https://ai.dev/usage?tab=rate-limit. ` +
-              `Original error: ${error.message}`
-            );
-          }
-          // For non-rate-limit errors, throw immediately
-          throw error;
-        }
-      }
-    };
+          {/* Main Grid Container */}
+          <div className="w-full max-w-3xl flex flex-col gap-12 z-10">
+            
+            {/* Title Block */}
+            <div className="flex items-center gap-4">
+              <img 
+                src="/logo.svg" 
+                alt="aster" 
+                className="w-12 h-12 md:w-16 md:h-16"
+              />
+              <h1 className="font-display font-bold text-7xl md:text-[8rem] leading-[0.8] tracking-tight-swiss lowercase text-white">
+                aster
+              </h1>
+            </div>
 
-    for (const modelName of modelsToTry) {
-      try {
-        const model = genAI.getGenerativeModel({ 
-          model: modelName,
-          systemInstruction: SYSTEM_INSTRUCTION,
-          generationConfig: {
-            temperature: 0.3,  // Lower temperature for more consistent, accurate code
-            maxOutputTokens: 16384,  // Increased for more complete code
-            topP: 0.95,
-            topK: 40,
-          },
-        });
+            {/* Input Area - Restored underline */}
+            <div className="w-full relative group">
+                <div className="relative flex items-center">
+                  <span className="absolute left-0 text-gray-500 font-mono text-xl animate-pulse px-2">{'>'}</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e)}
+                    className="w-full bg-transparent border-b border-gray-800 focus:border-white py-3 pl-8 text-xl md:text-2xl font-display lowercase tracking-tight-swiss text-white placeholder:text-gray-800 focus:outline-none transition-colors"
+                    placeholder="enter game concept..."
+                  />
+                  <button 
+                    onClick={() => handleGenerate(prompt)}
+                    className="absolute right-0 p-2 hover:bg-white hover:text-black transition-colors border border-transparent hover:border-white"
+                  >
+                    <ArrowRight size={20} strokeWidth={1.5} />
+                  </button>
+                </div>
+            </div>
 
-        // Use retry logic for rate limits
-        const result = await retryWithBackoff(async () => {
-          return await model.generateContent(finalPrompt);
-        });
-        
-        const response = await result.response;
-        let text = response.text() || '';
+            {/* Recommendations Chips - Removed top border separator */}
+            <div className="w-full">
+               <div className="flex items-center justify-between mb-4">
+                 <span className="font-mono text-[10px] text-gray-500 lowercase tracking-normal-swiss">suggestions</span>
+               </div>
+               
+               <div className="flex flex-wrap gap-3">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleGenerate(s)}
+                      className="group relative px-4 py-2 border border-gray-800 hover:border-white hover:bg-white transition-all duration-200"
+                    >
+                      <span className="font-mono text-xs text-gray-400 group-hover:text-black lowercase tracking-normal-swiss">
+                        {s}
+                      </span>
+                    </button>
+                  ))}
+               </div>
+            </div>
 
-        // Cleanup: Remove markdown code blocks and any explanatory text
-        // Remove markdown code fences (various formats)
-        text = text.replace(/^```html\s*/i, '');
-        text = text.replace(/^```\s*/i, '');
-        text = text.replace(/```\s*$/g, '');
-        text = text.replace(/```\s*$/gm, '');
-        
-        // Remove any explanatory text before HTML (common pattern: "Here's the code:" etc.)
-        const htmlStartMatch = text.match(/<(!DOCTYPE|html|head|body|script|style|canvas|div)/i);
-        if (htmlStartMatch && htmlStartMatch.index && htmlStartMatch.index > 0) {
-          text = text.substring(htmlStartMatch.index);
-        }
-        
-        // Remove any trailing explanatory text after closing tags
-        const lastTagMatch = text.match(/<\/html>\s*$/i);
-        if (lastTagMatch) {
-          text = text.substring(0, lastTagMatch.index + lastTagMatch[0].length);
-        }
-        
-        // Remove any leading/trailing whitespace and newlines
-        text = text.trim();
-        
-        return text;
-      } catch (error: any) {
-        lastError = error;
-        const errorMessage = error.message || '';
-        const errorString = JSON.stringify(error);
-        
-        // Check for 404 or "not found" errors - try next model
-        if (
-          errorMessage.includes('404') || 
-          errorMessage.includes('not found') ||
-          errorMessage.includes('is not found') ||
-          errorString.includes('404') ||
-          errorString.includes('not found')
-        ) {
-          failedModels.push(modelName);
-          console.warn(`Model ${modelName} not available (404), trying next...`);
-          continue;
-        }
-        
-        // Check for quota/rate limit errors - try next model (after retries exhausted)
-        if (
-          errorMessage.includes('429') ||
-          errorMessage.includes('quota') ||
-          errorMessage.includes('rate limit') ||
-          errorString.includes('429')
-        ) {
-          failedModels.push(`${modelName} (quota exceeded)`);
-          console.warn(`Model ${modelName} quota exceeded, trying next...`);
-          continue;
-        }
-        
-        // For other errors, throw immediately
-        throw error;
-      }
-    }
+            {error && (
+              <div className="p-4 border border-red-900 bg-red-900/10 text-red-500 font-mono text-xs lowercase tracking-normal-swiss">
+                error: {error}
+              </div>
+            )}
+          </div>
+          
+          {/* Footer */}
+          <div className="absolute bottom-6 left-6 font-mono text-[10px] text-gray-800 lowercase tracking-normal-swiss">
+            v1.0.0 / an experiment by Julian M.
+          </div>
+        </div>
+      )}
 
-    // If all models failed, provide a helpful error message
-    const hasQuotaErrors = failedModels.some(m => m.includes('quota'));
-    const has404Errors = failedModels.some(m => !m.includes('quota'));
-    
-    let errorMsg = '';
-    if (hasQuotaErrors && has404Errors) {
-      errorMsg = `All models failed. Some models had quota issues, others were not found.\n\nTried: ${failedModels.join(', ')}\n\nThis usually means:\n1. You've exceeded your API quota/rate limits\n2. Some models may not be available in your region\n3. Your API key may not have access to certain models\n\nPlease:\n- Check your quota at https://ai.dev/usage?tab=rate-limit\n- Wait a few minutes before trying again\n- Verify API key permissions at https://aistudio.google.com/apikey\n\nLast error: ${lastError?.message || 'Unknown error'}`;
-    } else if (hasQuotaErrors) {
-      errorMsg = `All models exceeded quota limits. Tried: ${failedModels.join(', ')}\n\nYou've hit your rate limit or daily quota. Please:\n- Wait before trying again (check the retry time in the error)\n- Monitor your usage at https://ai.dev/usage?tab=rate-limit\n- Consider upgrading your plan if you need higher limits\n\nLast error: ${lastError?.message || 'Unknown error'}`;
-    } else if (has404Errors) {
-      errorMsg = `All models failed (404 errors). Tried: ${failedModels.join(', ')}\n\nThis usually means:\n1. Your API key may not have access to these models\n2. The models may not be available in your region\n3. The Generative Language API may not be enabled for your project\n\nPlease check your API key permissions at https://aistudio.google.com/apikey\n\nLast error: ${lastError?.message || 'Unknown error'}`;
-    } else {
-      errorMsg = `All model attempts failed. Last error: ${lastError?.message || 'Unknown error'}`;
-    }
-    
-    throw new Error(errorMsg);
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    throw new Error(error.message || "Failed to generate game code.");
-  }
-};
+      {/* PLAYING / EDITING STATE */}
+      {(view === 'playing' || view === 'editing') && gameCode && (
+        <div className="flex flex-col h-screen w-screen bg-black">
+          <TopBar />
+          <main className="flex-1 bg-black relative overflow-hidden flex flex-col">
+             {showCode ? (
+                <div className="w-full h-full bg-black overflow-hidden border-t border-gray-800">
+                   <CodeViewer code={gameCode} />
+                </div>
+             ) : (
+                <GamePreview code={gameCode} isPaused={isPaused} />
+             )}
+          </main>
+        </div>
+      )}
+    </div>
+  );
+}
