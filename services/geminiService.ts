@@ -43,6 +43,22 @@ TECHNICAL REQUIREMENTS:
 - Use proper event handling: preventDefault() when needed, stopPropagation() if necessary.
 - For canvas games: Always get 2D context, set canvas dimensions properly, use clearRect() each frame.
 
+FULL SCREEN & RESPONSIVE REQUIREMENTS:
+- The game MUST fill the entire viewport with NO white frames, borders, or margins.
+- Set body and html to: margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #050505;
+- Canvas or game container MUST be: width: 100vw; height: 100vh; position: fixed; top: 0; left: 0;
+- Game MUST be fully responsive and scale properly for different screen sizes (mobile, tablet, desktop).
+- Use window.innerWidth and window.innerHeight for dimensions, NOT fixed pixel values.
+- Handle window resize events to update game dimensions dynamically.
+- All game elements should scale proportionally based on viewport size.
+- NO white backgrounds anywhere - use #050505 (black) or #eeeeee (white) only per visual style.
+
+PAUSE/PLAY FUNCTIONALITY:
+- Implement message listener for pause/play: window.addEventListener('message', (e) => { if (e.data.type === 'pause') { /* pause game */ } else if (e.data.type === 'play') { /* resume game */ } });
+- When paused, stop all animations and game loops (cancelAnimationFrame, clear intervals).
+- When resumed, restart animations and game loops from where they left off.
+- Store game state when pausing so it can be resumed correctly.
+
 VISUAL STYLE: "SWISS INTERNATIONAL STYLE" / BRUTALIST
 Unless explicitly asked otherwise, strictly adhere to this aesthetic:
 - Color Palette: STRICTLY Black (#050505) and White (#eeeeee). No grays, no colors.
