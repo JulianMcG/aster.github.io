@@ -59,7 +59,7 @@ export const generateGameCode = async (prompt: string, previousCode?: string): P
     }
 
     // Try different models in order of preference
-    const modelsToTry = ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro-latest"];
+    const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
     let lastError: any = null;
 
     for (const modelName of modelsToTry) {
